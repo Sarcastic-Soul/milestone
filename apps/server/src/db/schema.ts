@@ -32,10 +32,12 @@ export const milestones = pgTable("milestones", {
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
   phaseId: uuid().references(() => phases.id, { onDelete: "set null" }),
+  label: text().notNull(),
   amount: numeric({ precision: 12, scale: 2 }).notNull(),
-  trigger: text().notNull(),
   dueDate: date(),
   paypalInvoiceId: text().unique(),
+  // Link the client opens to pay; set once the invoice is sent.
+  payerUrl: text(),
   // pending | sent | paid | partially_paid | refunded | cancelled
   status: text().notNull().default("pending"),
 });

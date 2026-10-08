@@ -10,6 +10,7 @@ import { db } from "./db/index.ts";
 import { env } from "./env.ts";
 import { subscribe } from "./lib/events.ts";
 import { getAccessToken } from "./lib/paypal.ts";
+import { projects } from "./routes/projects.ts";
 import { webhooks } from "./routes/webhooks.ts";
 
 const app = new Hono();
@@ -39,7 +40,13 @@ app.get("/api/events", (c) =>
   }),
 );
 
+app.route("/api/projects", projects);
 app.route("/api/webhooks", webhooks);
+
+app.onError((err, c) => {
+  console.error(err);
+  return c.json({ error: err.message }, 500);
+});
 
 // In production the server also serves the built frontend. Bryntum makes the bundle big, so gzip it.
 const webDist = resolve(import.meta.dirname, "../../web/dist");

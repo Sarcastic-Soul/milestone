@@ -32,9 +32,9 @@ pnpm db:push              # create tables
 pnpm dev                  # web on :5173, API on :8787
 ```
 
-PayPal webhooks need a public URL. Run `pnpm tunnel`, then add
-`<tunnel-url>/api/webhooks/paypal` as a webhook in the PayPal developer dashboard and put its ID in
-`PAYPAL_WEBHOOK_ID`.
+PayPal webhooks need a public URL. Run `pnpm tunnel`, copy the `trycloudflare.com` URL it prints,
+then run `pnpm webhook:register <url>`. That creates the webhook on your sandbox app, saves its ID
+to `.env`, and removes old tunnel webhooks. Restart `pnpm dev` afterwards.
 
 ## Deploy
 
