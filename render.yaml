@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: milestone
+    runtime: node
+    plan: free
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm start
+    healthCheckPath: /api/ping
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: PAYPAL_ENVIRONMENT
+        value: SANDBOX
+      - key: OLLAMA_BASE_URL
+        value: https://ollama.com/v1
+      - key: OLLAMA_MODEL
+        value: gemma4:31b
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: OLLAMA_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false

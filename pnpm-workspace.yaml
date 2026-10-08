@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+  - packages/*
+allowBuilds:
+  '@bryntum/gantt-trial': true
+  '@bryntum/gantt-trial-lib': true
+  esbuild: true
