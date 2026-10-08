@@ -7,3 +7,4 @@ dist/
 .DS_Store
 HACKATHON-DETAILS.md
 .playwright-mcp/
+design-options/

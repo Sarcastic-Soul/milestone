@@ -66,3 +66,15 @@ export const paypalEvents = pgTable("paypal_events", {
   verified: boolean().notNull(),
   receivedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
+
+// Plain-English log of what happened on a project, newest first in the UI.
+export const activity = pgTable("activity", {
+  id: uuid().primaryKey().defaultRandom(),
+  projectId: uuid()
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  // info | payment | warning | agent
+  kind: text().notNull().default("info"),
+  message: text().notNull(),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});

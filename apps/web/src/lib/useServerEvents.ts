@@ -1,10 +1,11 @@
 import type { ServerEvent } from "@milestone/shared";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-// Live feed of PayPal webhook events from the server.
+// Listens to the server's live feed and refetches whatever a PayPal webhook changed.
 export function useServerEvents() {
+  const qc = useQueryClient();
   const [connected, setConnected] = useState(false);
-  const [events, setEvents] = useState<ServerEvent[]>([]);
 
   useEffect(() => {
     const source = new EventSource("/api/events");
@@ -12,10 +13,13 @@ export function useServerEvents() {
     source.onerror = () => setConnected(false);
     source.onmessage = (msg) => {
       const event = JSON.parse(msg.data) as ServerEvent;
-      if (event.type !== "hello") setEvents((prev) => [event, ...prev].slice(0, 50));
+      if (event.type === "project") {
+        qc.invalidateQueries({ queryKey: ["project", event.projectId] });
+        qc.invalidateQueries({ queryKey: ["projects"] });
+      }
     };
     return () => source.close();
-  }, []);
+  }, [qc]);
 
-  return { connected, events };
+  return { connected };
 }

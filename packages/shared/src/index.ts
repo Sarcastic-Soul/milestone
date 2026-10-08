@@ -46,6 +46,7 @@ export type ContractExtract = z.infer<typeof ContractExtract>;
 export type PhaseStatus = "planned" | "active" | "blocked" | "done";
 export type MilestoneStatus = "pending" | "sent" | "paid" | "partially_paid" | "refunded" | "cancelled";
 export type PayoutStatus = "pending" | "sent" | "success" | "failed";
+export type ActivityKind = "info" | "payment" | "warning" | "agent";
 
 // A plan ready to show or save: concrete dates and amounts, computed in code.
 export type PlanDraft = {
@@ -71,6 +72,21 @@ export type ProjectDetail = {
   phases: { id: string; position: number; name: string; startDate: string; endDate: string; waitForPayment: boolean; status: PhaseStatus }[];
   milestones: { id: string; phaseId: string | null; label: string; amount: number; dueDate: string | null; status: MilestoneStatus; paypalInvoiceId: string | null; payerUrl: string | null }[];
   payouts: { id: string; phaseId: string | null; name: string; email: string | null; amount: number; trigger: string; status: PayoutStatus; paypalBatchId: string | null }[];
+  activity: { id: string; kind: ActivityKind; message: string; at: string }[];
+};
+
+export type ProjectSummary = {
+  id: string;
+  name: string;
+  clientName: string;
+  currency: string;
+  total: number;
+  startDate: string;
+  endDate: string | null;
+  collected: number;
+  // Sent invoices past their due date and still unpaid.
+  overdue: number;
+  blockedPhases: number;
 };
 
 // Pushed to the browser over SSE so the Gantt updates live.

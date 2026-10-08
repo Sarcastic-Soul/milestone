@@ -11,9 +11,13 @@
   "dependencies": {
     "@bryntum/gantt": "npm:@bryntum/gantt-trial@7.3.7",
     "@bryntum/gantt-react": "7.3.7",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/manrope": "^5.3.0",
     "@milestone/shared": "workspace:*",
     "@phosphor-icons/react": "^2.1.10",
     "@tanstack/react-query": "^5.104.1",
+    "motion": "^14.0.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

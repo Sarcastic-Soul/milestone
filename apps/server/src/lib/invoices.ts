@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db/index.ts";
+import { logActivity } from "./activity.ts";
 import { maxDate, today } from "./dates.ts";
-import { publish } from "./events.ts";
 import { paypal } from "./paypal.ts";
 
 type Invoice = { id: string; status: string; links?: { rel: string; href: string }[] };
@@ -52,8 +52,15 @@ export async function sendMilestoneInvoice(milestoneId: string) {
     .update(schema.milestones)
     .set({ paypalInvoiceId: invoice.id, payerUrl: sent?.href ?? null, status: "sent" })
     .where(eq(schema.milestones.id, milestone.id));
-  publish({ type: "project", projectId: project.id, reason: `Invoice sent: ${milestone.label}` });
+  await logActivity(
+    project.id,
+    `Sent ${milestone.label} invoice for ${money(milestone.amount, project.currency)} to ${project.clientEmail}.`,
+  );
   return { invoiceId: invoice.id, payerUrl: sent?.href ?? null };
+}
+
+function money(amount: string | number, currency: string) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(amount));
 }
 
 const STATUS_BY_EVENT: Record<string, string> = {
@@ -69,14 +76,24 @@ export async function applyInvoiceEvent(eventType: string, invoiceId: string) {
   const milestone = await db.query.milestones.findFirst({ where: eq(schema.milestones.paypalInvoiceId, invoiceId) });
   if (!milestone) return;
 
+  if (milestone.status === status) return;
   await db.update(schema.milestones).set({ status }).where(eq(schema.milestones.id, milestone.id));
+  const project = await db.query.projects.findFirst({ where: eq(schema.projects.id, milestone.projectId) });
+  const amount = money(milestone.amount, project?.currency ?? "USD");
+  const messages: Record<string, [string, "payment" | "warning"]> = {
+    paid: [`${milestone.label} paid through PayPal: ${amount}.`, "payment"],
+    cancelled: [`${milestone.label} invoice (${amount}) was cancelled.`, "warning"],
+    refunded: [`${milestone.label} payment (${amount}) was refunded.`, "warning"],
+  };
+  const [message, kind] = messages[status]!;
+  await logActivity(milestone.projectId, message, kind);
 
   // A blocked phase waits on the phase right before it. Once every invoice on that phase is paid, unblock it.
   if (status === "paid" && milestone.phaseId) {
     const phase = await db.query.phases.findFirst({ where: eq(schema.phases.id, milestone.phaseId) });
     const siblings = await db.query.milestones.findMany({ where: eq(schema.milestones.phaseId, milestone.phaseId) });
     if (phase && siblings.every((m) => m.status === "paid")) {
-      await db
+      const unblocked = await db
         .update(schema.phases)
         .set({ status: "planned" })
         .where(
@@ -85,8 +102,11 @@ export async function applyInvoiceEvent(eventType: string, invoiceId: string) {
             eq(schema.phases.position, phase.position + 1),
             eq(schema.phases.status, "blocked"),
           ),
-        );
+        )
+        .returning({ name: schema.phases.name });
+      for (const next of unblocked) {
+        await logActivity(milestone.projectId, `${next.name} is no longer on hold. It can start now.`, "payment");
+      }
     }
   }
-  publish({ type: "project", projectId: milestone.projectId, reason: `${milestone.label}: ${status}` });
 }

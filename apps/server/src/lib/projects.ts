@@ -1,9 +1,19 @@
-import type { MilestoneStatus, PayoutStatus, PhaseStatus, PlanDraft, ProjectDetail } from "@milestone/shared";
+import type {
+  ActivityKind,
+  MilestoneStatus,
+  PayoutStatus,
+  PhaseStatus,
+  PlanDraft,
+  ProjectDetail,
+  ProjectSummary,
+} from "@milestone/shared";
 import { asc, desc, eq } from "drizzle-orm";
 import { db, schema } from "../db/index.ts";
+import { logActivity } from "./activity.ts";
+import { today } from "./dates.ts";
 
 export async function saveProject(plan: PlanDraft, contractText: string | null): Promise<string> {
-  return db.transaction(async (tx) => {
+  const id = await db.transaction(async (tx) => {
     const [project] = await tx
       .insert(schema.projects)
       .values({
@@ -60,30 +70,53 @@ export async function saveProject(plan: PlanDraft, contractText: string | null):
     }
     return projectId;
   });
+  const invoices = plan.milestones.length;
+  await logActivity(
+    id,
+    `Plan made from the contract: ${plan.phases.length} phases and ${invoices} ${invoices === 1 ? "invoice" : "invoices"}.`,
+  );
+  return id;
 }
 
-export async function listProjects() {
-  return db
-    .select({
-      id: schema.projects.id,
-      name: schema.projects.name,
-      clientName: schema.projects.clientName,
-      currency: schema.projects.currency,
-      total: schema.projects.total,
-      startDate: schema.projects.startDate,
-    })
-    .from(schema.projects)
-    .orderBy(desc(schema.projects.createdAt))
-    .then((rows) => rows.map((r) => ({ ...r, total: Number(r.total) })));
+export async function listProjects(): Promise<ProjectSummary[]> {
+  const [projects, phases, milestones] = await Promise.all([
+    db.select().from(schema.projects).orderBy(desc(schema.projects.createdAt)),
+    db.select().from(schema.phases),
+    db.select().from(schema.milestones),
+  ]);
+  const now = today();
+  return projects.map((p) => {
+    const own = phases.filter((ph) => ph.projectId === p.id);
+    const bills = milestones.filter((m) => m.projectId === p.id);
+    const sum = (rows: typeof bills) => rows.reduce((total, m) => total + Number(m.amount), 0);
+    return {
+      id: p.id,
+      name: p.name,
+      clientName: p.clientName,
+      currency: p.currency,
+      total: Number(p.total),
+      startDate: p.startDate,
+      endDate: own.map((ph) => ph.endDate).sort().at(-1) ?? null,
+      collected: sum(bills.filter((m) => m.status === "paid")),
+      overdue: sum(bills.filter((m) => m.status === "sent" && m.dueDate !== null && m.dueDate < now)),
+      blockedPhases: own.filter((ph) => ph.status === "blocked").length,
+    };
+  });
 }
 
 export async function getProject(id: string): Promise<ProjectDetail | null> {
   const project = await db.query.projects.findFirst({ where: eq(schema.projects.id, id) });
   if (!project) return null;
-  const [phases, milestones, payouts] = await Promise.all([
+  const [phases, milestones, payouts, activity] = await Promise.all([
     db.select().from(schema.phases).where(eq(schema.phases.projectId, id)).orderBy(asc(schema.phases.position)),
     db.select().from(schema.milestones).where(eq(schema.milestones.projectId, id)).orderBy(asc(schema.milestones.dueDate)),
     db.select().from(schema.payouts).where(eq(schema.payouts.projectId, id)),
+    db
+      .select()
+      .from(schema.activity)
+      .where(eq(schema.activity.projectId, id))
+      .orderBy(desc(schema.activity.createdAt))
+      .limit(50),
   ]);
   return {
     id: project.id,
@@ -121,6 +154,12 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
       trigger: p.trigger,
       status: p.status as PayoutStatus,
       paypalBatchId: p.paypalBatchId,
+    })),
+    activity: activity.map((a) => ({
+      id: a.id,
+      kind: a.kind as ActivityKind,
+      message: a.message,
+      at: a.createdAt.toISOString(),
     })),
   };
 }
