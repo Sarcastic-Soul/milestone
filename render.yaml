@@ -3,6 +3,8 @@ services:
     name: milestone
     runtime: node
     plan: free
+    # Same region as the Neon database, so each query is a few ms instead of a few hundred.
+    region: singapore
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
     startCommand: pnpm start
     healthCheckPath: /api/ping
@@ -15,6 +17,10 @@ services:
         value: https://ollama.com/v1
       - key: OLLAMA_MODEL
         value: gemma4:31b
+      - key: TZ
+        value: Asia/Kolkata
+      - key: SANDBOX_PAYEE_EMAIL
+        sync: false
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_SECRET
