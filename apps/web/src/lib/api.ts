@@ -1,4 +1,4 @@
-import type { PlanDraft, ProjectDetail, ProjectSummary } from "@milestone/shared";
+import type { PlanDraft, ProjectDetail, ProjectSummary, SuggestionDraft } from "@milestone/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -50,6 +50,26 @@ export function useSendInvoice(projectId: string) {
         `/projects/${projectId}/milestones/${milestoneId}/invoice`,
         { method: "POST" },
       ),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["project", projectId] }),
+  });
+}
+
+// Asks the agent to look at the project now. Results arrive over the live feed.
+export function useCheckProject(projectId: string) {
+  return useMutation({
+    mutationFn: () => request<{ queued: boolean }>(`/projects/${projectId}/agent/check`, { method: "POST" }),
+  });
+}
+
+export function useResolveSuggestion(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; action: "approve" | "dismiss"; draft?: SuggestionDraft }) =>
+      request<{ ok: boolean }>(`/projects/${projectId}/suggestions/${input.id}/${input.action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft: input.draft }),
+      }),
     onSettled: () => qc.invalidateQueries({ queryKey: ["project", projectId] }),
   });
 }

@@ -9,6 +9,7 @@ import {
 import { lazy, Suspense } from "react";
 import { Alert } from "../components/Alert.tsx";
 import { Button } from "../components/Button.tsx";
+import { Suggestions } from "../components/Suggestions.tsx";
 import { useProject, useSendInvoice } from "../lib/api.ts";
 import { daysBetween, lastDay, longDate, money, shortDate, timeAgo, todayIso } from "../lib/format.ts";
 import { linkProps } from "../lib/router.ts";
@@ -76,6 +77,8 @@ export function ProjectPage({ id }: { id: string }) {
         </div>
       </section>
 
+      <Suggestions project={project} />
+
       <div className="grid flex-1 border-t border-rule lg:grid-cols-[1fr_360px]">
         {/* Bryntum needs a real height: header plus one 84px row per phase, plus room for the last money line. */}
         <div className="min-w-0">
@@ -110,10 +113,10 @@ function Payments({ project }: { project: ProjectDetail }) {
       )}
       <ul>
         {project.milestones.map((m) => (
-          <li key={m.id} className="border-t border-rule py-3.5">
+          <li key={m.id} className={`border-t border-rule py-3.5 ${m.status === "cancelled" ? "text-ink-2" : ""}`}>
             <div className="flex items-baseline justify-between gap-3">
               <span className="font-semibold">{m.label}</span>
-              <span className="num">{money(m.amount, project.currency)}</span>
+              <span className={`num ${m.status === "cancelled" ? "line-through" : ""}`}>{money(m.amount, project.currency)}</span>
             </div>
             <div className="mt-0.5 text-[13px] text-ink-2">
               {phaseName(m)}
@@ -122,6 +125,7 @@ function Payments({ project }: { project: ProjectDetail }) {
             <div className="mt-2">
               <MilestoneAction
                 milestone={m}
+                currency={project.currency}
                 sending={send.isPending && send.variables === m.id}
                 disabled={send.isPending}
                 onSend={() => send.mutate(m.id)}
@@ -134,7 +138,13 @@ function Payments({ project }: { project: ProjectDetail }) {
   );
 }
 
-function MilestoneAction(props: { milestone: Milestone; sending: boolean; disabled: boolean; onSend: () => void }) {
+function MilestoneAction(props: {
+  milestone: Milestone;
+  currency: string;
+  sending: boolean;
+  disabled: boolean;
+  onSend: () => void;
+}) {
   const { milestone: m } = props;
   const today = todayIso();
 
@@ -174,7 +184,17 @@ function MilestoneAction(props: { milestone: Milestone; sending: boolean; disabl
       </div>
     );
   }
-  return <span className="text-[13px] font-semibold text-late capitalize">{m.status.replace("_", " ")}</span>;
+  if (m.status === "partially_paid") {
+    return (
+      <span className="text-[13px] font-semibold text-late">
+        <span className="num">{money(m.amountPaid, props.currency)}</span> paid so far
+      </span>
+    );
+  }
+  if (m.status === "cancelled") {
+    return <span className="text-[13px] text-ink-2">Cancelled</span>;
+  }
+  return <span className="text-[13px] font-semibold text-late">Refunded</span>;
 }
 
 function Payouts({ project }: { project: ProjectDetail }) {
@@ -191,12 +211,31 @@ function Payouts({ project }: { project: ProjectDetail }) {
               <span className="num">{money(p.amount, project.currency)}</span>
             </div>
             <div className="mt-0.5 text-[13px] text-ink-2">
-              {p.status === "success" ? "Paid through PayPal" : `${phaseName(p.phaseId) ?? "Project"}: ${p.trigger}`}
+              {phaseName(p.phaseId) ?? "Project"}: {p.trigger}
             </div>
+            <PayoutState status={p.status} />
           </li>
         ))}
       </ul>
     </section>
+  );
+}
+
+const PAYOUT_STATE: Record<ProjectDetail["payouts"][number]["status"], [string, string]> = {
+  pending: ["Not paid yet", "text-ink-2"],
+  sent: ["Sent, PayPal is processing it", "text-ink-2"],
+  success: ["Paid through PayPal", "font-semibold text-accent"],
+  unclaimed: ["Sent, not claimed yet", "font-semibold text-late"],
+  failed: ["Payout failed", "font-semibold text-late"],
+};
+
+function PayoutState({ status }: { status: ProjectDetail["payouts"][number]["status"] }) {
+  const [text, cls] = PAYOUT_STATE[status];
+  return (
+    <div className={`mt-2 inline-flex items-center gap-1.5 text-[13px] ${cls}`}>
+      {status === "success" && <CheckIcon weight="bold" aria-hidden />}
+      {text}
+    </div>
   );
 }
 

@@ -8,6 +8,7 @@ import { logger } from "hono/logger";
 import { streamSSE } from "hono/streaming";
 import { db } from "./db/index.ts";
 import { env } from "./env.ts";
+import { startAgentSchedule } from "./lib/agent.ts";
 import { subscribe } from "./lib/events.ts";
 import { getAccessToken } from "./lib/paypal.ts";
 import { projects } from "./routes/projects.ts";
@@ -56,3 +57,4 @@ app.get("*", serveStatic({ path: resolve(webDist, "index.html") }));
 serve({ fetch: app.fetch, port: env.PORT }, (info) => {
   console.log(`server on http://localhost:${info.port}`);
 });
+startAgentSchedule();

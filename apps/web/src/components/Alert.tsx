@@ -6,7 +6,7 @@ export function Alert({ children, className = "" }: { children: ReactNode; class
   return (
     <p role="alert" className={`flex gap-2 border border-late/35 bg-late-soft px-3 py-2 text-sm text-late ${className}`}>
       <WarningIcon className="mt-[3px] shrink-0" weight="bold" aria-hidden />
-      <span>{children}</span>
+      <span className="min-w-0 [overflow-wrap:anywhere]">{children}</span>
     </p>
   );
 }

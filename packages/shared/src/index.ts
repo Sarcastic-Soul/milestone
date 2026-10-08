@@ -45,8 +45,32 @@ export type ContractExtract = z.infer<typeof ContractExtract>;
 
 export type PhaseStatus = "planned" | "active" | "blocked" | "done";
 export type MilestoneStatus = "pending" | "sent" | "paid" | "partially_paid" | "refunded" | "cancelled";
-export type PayoutStatus = "pending" | "sent" | "success" | "failed";
+export type PayoutStatus = "pending" | "sent" | "success" | "failed" | "unclaimed";
 export type ActivityKind = "info" | "payment" | "warning" | "agent";
+
+export type SuggestionKind = "send_invoice" | "reminder" | "partial_payment" | "replan" | "payout" | "pause";
+
+// The editable part of a suggestion. Each kind uses its own fields.
+export type SuggestionDraft = {
+  subject?: string;
+  note?: string;
+  // partial_payment: share of the late invoice to bill now; the rest gets its own later invoice.
+  minimumPercent?: number;
+  // replan: how many days to push this phase and everything after it.
+  shiftDays?: number;
+};
+
+export type Suggestion = {
+  id: string;
+  kind: SuggestionKind;
+  targetId: string;
+  title: string;
+  reason: string;
+  draft: SuggestionDraft;
+  // Set when the last approve failed, e.g. PayPal refused the request.
+  error: string | null;
+  at: string;
+};
 
 // A plan ready to show or save: concrete dates and amounts, computed in code.
 export type PlanDraft = {
@@ -69,10 +93,33 @@ export type ProjectDetail = {
   currency: string;
   total: number;
   startDate: string;
-  phases: { id: string; position: number; name: string; startDate: string; endDate: string; waitForPayment: boolean; status: PhaseStatus }[];
-  milestones: { id: string; phaseId: string | null; label: string; amount: number; dueDate: string | null; status: MilestoneStatus; paypalInvoiceId: string | null; payerUrl: string | null }[];
+  agentCheckedAt: string | null;
+  phases: {
+    id: string;
+    position: number;
+    name: string;
+    startDate: string;
+    endDate: string;
+    baselineStart: string;
+    baselineEnd: string;
+    waitForPayment: boolean;
+    status: PhaseStatus;
+  }[];
+  milestones: {
+    id: string;
+    phaseId: string | null;
+    label: string;
+    amount: number;
+    amountPaid: number;
+    holdsNextPhase: boolean;
+    dueDate: string | null;
+    status: MilestoneStatus;
+    paypalInvoiceId: string | null;
+    payerUrl: string | null;
+  }[];
   payouts: { id: string; phaseId: string | null; name: string; email: string | null; amount: number; trigger: string; status: PayoutStatus; paypalBatchId: string | null }[];
   activity: { id: string; kind: ActivityKind; message: string; at: string }[];
+  suggestions: Suggestion[];
 };
 
 export type ProjectSummary = {
@@ -93,4 +140,5 @@ export type ProjectSummary = {
 export type ServerEvent =
   | { type: "hello" }
   | { type: "paypal"; eventType: string; resourceId: string | null; at: string }
-  | { type: "project"; projectId: string; reason: string };
+  | { type: "project"; projectId: string; reason: string }
+  | { type: "agent"; projectId: string; running: boolean };

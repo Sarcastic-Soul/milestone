@@ -1,6 +1,7 @@
 import type { ServerEvent } from "@milestone/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { setAgentRunning } from "./agentStatus.ts";
 
 // Listens to the server's live feed and refetches whatever a PayPal webhook changed.
 export function useServerEvents() {
@@ -16,6 +17,8 @@ export function useServerEvents() {
       if (event.type === "project") {
         qc.invalidateQueries({ queryKey: ["project", event.projectId] });
         qc.invalidateQueries({ queryKey: ["projects"] });
+      } else if (event.type === "agent") {
+        setAgentRunning(event.projectId, event.running);
       }
     };
     return () => source.close();

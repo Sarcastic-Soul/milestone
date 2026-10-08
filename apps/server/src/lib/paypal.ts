@@ -41,8 +41,26 @@ export async function paypal<T = unknown>(path: string, init: RequestInit = {}):
     },
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(`PayPal ${init.method ?? "GET"} ${path} failed: ${res.status} ${text}`);
+  if (!res.ok) {
+    console.warn(`[paypal] ${init.method ?? "GET"} ${path} failed: ${res.status} ${text}`);
+    throw new PayPalError(res.status, text);
+  }
   return (text ? JSON.parse(text) : undefined) as T;
+}
+
+// Keeps PayPal's own short explanation for the UI; the full body goes to the server log.
+export class PayPalError extends Error {
+  constructor(
+    readonly status: number,
+    body: string,
+  ) {
+    let detail: { message?: string; details?: { description?: string }[] } = {};
+    try {
+      detail = JSON.parse(body);
+    } catch {}
+    const why = detail.details?.[0]?.description ?? detail.message ?? `request failed (${status})`;
+    super(`PayPal said: ${why}`);
+  }
 }
 
 // Splices the raw body in so PayPal checks the exact bytes it signed.

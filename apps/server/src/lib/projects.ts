@@ -6,8 +6,10 @@ import type {
   PlanDraft,
   ProjectDetail,
   ProjectSummary,
+  SuggestionDraft,
+  SuggestionKind,
 } from "@milestone/shared";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { db, schema } from "../db/index.ts";
 import { logActivity } from "./activity.ts";
 import { today } from "./dates.ts";
@@ -37,6 +39,8 @@ export async function saveProject(plan: PlanDraft, contractText: string | null):
           name: p.name,
           startDate: p.startDate,
           endDate: p.endDate,
+          baselineStart: p.startDate,
+          baselineEnd: p.endDate,
           waitForPayment: p.waitForPayment,
           // A phase that waits on money starts blocked; a paid invoice unblocks it.
           status: p.waitForPayment ? "blocked" : "planned",
@@ -107,7 +111,7 @@ export async function listProjects(): Promise<ProjectSummary[]> {
 export async function getProject(id: string): Promise<ProjectDetail | null> {
   const project = await db.query.projects.findFirst({ where: eq(schema.projects.id, id) });
   if (!project) return null;
-  const [phases, milestones, payouts, activity] = await Promise.all([
+  const [phases, milestones, payouts, activity, suggestions] = await Promise.all([
     db.select().from(schema.phases).where(eq(schema.phases.projectId, id)).orderBy(asc(schema.phases.position)),
     db.select().from(schema.milestones).where(eq(schema.milestones.projectId, id)).orderBy(asc(schema.milestones.dueDate)),
     db.select().from(schema.payouts).where(eq(schema.payouts.projectId, id)),
@@ -117,6 +121,11 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
       .where(eq(schema.activity.projectId, id))
       .orderBy(desc(schema.activity.createdAt))
       .limit(50),
+    db
+      .select()
+      .from(schema.suggestions)
+      .where(and(eq(schema.suggestions.projectId, id), eq(schema.suggestions.status, "open")))
+      .orderBy(asc(schema.suggestions.createdAt)),
   ]);
   return {
     id: project.id,
@@ -126,12 +135,15 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
     currency: project.currency,
     total: Number(project.total),
     startDate: project.startDate,
+    agentCheckedAt: project.agentCheckedAt?.toISOString() ?? null,
     phases: phases.map((p) => ({
       id: p.id,
       position: p.position,
       name: p.name,
       startDate: p.startDate,
       endDate: p.endDate,
+      baselineStart: p.baselineStart ?? p.startDate,
+      baselineEnd: p.baselineEnd ?? p.endDate,
       waitForPayment: p.waitForPayment,
       status: p.status as PhaseStatus,
     })),
@@ -140,6 +152,8 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
       phaseId: m.phaseId,
       label: m.label,
       amount: Number(m.amount),
+      amountPaid: Number(m.amountPaid),
+      holdsNextPhase: m.holdsNextPhase,
       dueDate: m.dueDate,
       status: m.status as MilestoneStatus,
       paypalInvoiceId: m.paypalInvoiceId,
@@ -160,6 +174,16 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
       kind: a.kind as ActivityKind,
       message: a.message,
       at: a.createdAt.toISOString(),
+    })),
+    suggestions: suggestions.map((s) => ({
+      id: s.id,
+      kind: s.kind as SuggestionKind,
+      targetId: s.targetId,
+      title: s.title,
+      reason: s.reason,
+      draft: s.draft as SuggestionDraft,
+      error: s.error,
+      at: s.createdAt.toISOString(),
     })),
   };
 }

@@ -9,6 +9,7 @@ export const projects = pgTable("projects", {
   total: numeric({ precision: 12, scale: 2 }).notNull(),
   startDate: date().notNull(),
   contractText: text(),
+  agentCheckedAt: timestamp({ withTimezone: true }),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -22,6 +23,9 @@ export const phases = pgTable("phases", {
   startDate: date().notNull(),
   endDate: date().notNull(),
   waitForPayment: boolean().notNull().default(false),
+  // Dates from the original plan, kept so the Gantt can show how far a phase has moved.
+  baselineStart: date(),
+  baselineEnd: date(),
   // planned | active | blocked | done
   status: text().notNull().default("planned"),
 });
@@ -38,6 +42,11 @@ export const milestones = pgTable("milestones", {
   paypalInvoiceId: text().unique(),
   // Link the client opens to pay; set once the invoice is sent.
   payerUrl: text(),
+  amountPaid: numeric({ precision: 12, scale: 2 }).notNull().default("0"),
+  // Capture ids of the payments on this invoice, used to match disputes back to it.
+  transactionIds: text().array().notNull().default([]),
+  // False for the second half of a split invoice, so paying the first half is enough to move on.
+  holdsNextPhase: boolean().notNull().default(true),
   // pending | sent | paid | partially_paid | refunded | cancelled
   status: text().notNull().default("pending"),
 });
@@ -53,7 +62,7 @@ export const payouts = pgTable("payouts", {
   amount: numeric({ precision: 12, scale: 2 }).notNull(),
   trigger: text().notNull(),
   paypalBatchId: text(),
-  // pending | sent | success | failed
+  // pending | sent | success | failed | unclaimed
   status: text().notNull().default("pending"),
 });
 
@@ -77,4 +86,25 @@ export const activity = pgTable("activity", {
   kind: text().notNull().default("info"),
   message: text().notNull(),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+});
+
+// Things the agent wants to do. Nothing reaches the client or PayPal until the user approves.
+export const suggestions = pgTable("suggestions", {
+  id: uuid().primaryKey().defaultRandom(),
+  projectId: uuid()
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  // send_invoice | reminder | partial_payment | replan | payout | pause
+  kind: text().notNull(),
+  // The milestone, phase or payout the suggestion is about.
+  targetId: uuid().notNull(),
+  title: text().notNull(),
+  reason: text().notNull(),
+  // Editable details for the action, e.g. the reminder text or how many days to shift.
+  draft: jsonb().notNull().default({}),
+  // open | approved | dismissed | failed
+  status: text().notNull().default("open"),
+  error: text(),
+  createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp({ withTimezone: true }),
 });

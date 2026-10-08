@@ -189,6 +189,28 @@
   text-overflow: ellipsis;
 }
 
+.ledger-gantt .phase-moved {
+  color: var(--color-late);
+}
+/* Bryntum splits the row between bar and baseline; here the original dates sit behind the bar
+   as a dotted ghost of the same size, so the shift reads as "it was here, now it's there". */
+.ledger-gantt.b-baselines .b-gantt-task-wrap.b-has-baselines {
+  height: calc(1px * var(--b-event-size));
+  z-index: 1;
+}
+.ledger-gantt .b-baseline-wrap {
+  translate: 0 0;
+  height: 28px;
+  z-index: 0;
+}
+.ledger-gantt .b-task-baseline {
+  flex: 1;
+  margin: 0;
+  background: transparent;
+  border: 1.5px dotted var(--color-ink-2);
+  border-radius: 0;
+}
+
 /* The money line under each bar, starting at the bar's left edge like a ledger entry. */
 .ledger-gantt .b-gantt-task-wrap .b-sch-label.b-sch-label-bottom {
   justify-self: start;

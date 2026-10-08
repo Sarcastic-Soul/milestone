@@ -12,6 +12,8 @@ export const env = z
     PAYPAL_SECRET: z.string().min(1),
     PAYPAL_ENVIRONMENT: z.enum(["SANDBOX", "LIVE"]).default("SANDBOX"),
     PAYPAL_WEBHOOK_ID: z.string().optional(),
+    // Sandbox only: send every payout to this test account so it shows as paid, not unclaimed.
+    SANDBOX_PAYEE_EMAIL: z.email().optional(),
     OLLAMA_API_KEY: z.string().min(1),
     OLLAMA_BASE_URL: z.url().default("https://ollama.com/v1"),
     OLLAMA_MODEL: z.string().default("gemma4:31b"),

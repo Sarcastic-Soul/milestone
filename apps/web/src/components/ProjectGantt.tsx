@@ -5,7 +5,7 @@ import "@bryntum/gantt/fontawesome/css/solid.css";
 import type { DomConfig, Model } from "@bryntum/gantt";
 import { BryntumGantt, BryntumGanttProjectModel } from "@bryntum/gantt-react";
 import type { ProjectDetail } from "@milestone/shared";
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { daysBetween, money, shortDate, todayIso, weeksLabel } from "../lib/format.ts";
 import { phaseState, type PhaseState } from "../lib/status.ts";
 
@@ -22,7 +22,8 @@ const BAR_TEXT: Record<PhaseState, string> = {
 // One line per invoice under the bar: "Deposit $960 paid", "Design $1,440 3 days late".
 function moneyLine(milestones: Milestone[], currency: string): DomConfig[] {
   const today = todayIso();
-  return milestones.map((m, i) => {
+  // A split invoice is replaced by its two parts; only the parts matter now.
+  return milestones.filter((m) => m.status !== "cancelled").map((m, i) => {
     let state = m.dueDate ? `due ${shortDate(m.dueDate)}` : "";
     let cls = "";
     if (m.status === "paid") {
@@ -34,6 +35,12 @@ function moneyLine(milestones: Milestone[], currency: string): DomConfig[] {
       cls = "money-late";
     } else if (m.status === "sent") {
       state = `sent, due ${shortDate(m.dueDate ?? today)}`;
+    } else if (m.status === "partially_paid") {
+      state = `${money(m.amountPaid, currency)} paid`;
+      cls = "money-late";
+    } else if (m.status === "refunded") {
+      state = "refunded";
+      cls = "money-late";
     }
     return {
       tag: "span",
@@ -47,6 +54,47 @@ function moneyLine(milestones: Milestone[], currency: string): DomConfig[] {
     };
   });
 }
+
+// Bryntum re-applies any prop whose reference changes, and re-applying grid configs rebuilds
+// the sub-grids. So every object prop is either a module constant or memoized.
+const VIEW_PRESET = {
+  // One tick per week; on wide screens Bryntum stretches it, on phones the timeline scrolls.
+  tickWidth: 76,
+  shiftUnit: "week",
+  shiftIncrement: 1,
+  timeResolution: { unit: "day", increment: 1 },
+  headers: [{ unit: "week", dateFormat: "D MMM" }],
+};
+const GRID_WIDTH = { wide: 240, narrow: 150 };
+const TIME_RANGES = { showCurrentTimeLine: { name: "Today" } };
+const COLUMNS = [
+  {
+    type: "name" as const,
+    field: "name",
+    text: "Phase",
+    flex: 1,
+    renderer: ({ record }: { record: Model }) => {
+      const days = record.getData("days") as number;
+      const waits = record.getData("waitForPayment") as boolean;
+      const moved = record.getData("moved") as number;
+      // One detail line, so the row height holds on phones too. A moved phase says so instead
+      // of repeating that it waits for payment (the dashed bar already shows that).
+      const children: DomConfig[] = [
+        { className: "phase-name", text: record.getData("name") as string },
+        moved > 0
+          ? {
+              className: "phase-sub",
+              children: [
+                { tag: "span", text: `${weeksLabel(days)}, ` },
+                { tag: "span", className: "phase-moved", text: `moved ${weeksLabel(moved)} later` },
+              ],
+            }
+          : { className: "phase-sub", text: weeksLabel(days) + (waits ? ", waits for payment" : "") },
+      ];
+      return { children };
+    },
+  },
+];
 
 const NARROW = "(max-width: 640px)";
 function useNarrow() {
@@ -62,7 +110,14 @@ function useNarrow() {
 
 export function ProjectGantt({ project }: { project: ProjectDetail }) {
   const projectRef = useRef<BryntumGanttProjectModel>(null);
+  const ganttRef = useRef<BryntumGantt>(null);
   const narrow = useNarrow();
+  // Passed once; later changes go straight to the sub-grid, since a new config would rebuild it.
+  const [grids] = useState(() => ({ locked: { width: narrow ? GRID_WIDTH.narrow : GRID_WIDTH.wide } }));
+  useEffect(() => {
+    const locked = ganttRef.current?.instance?.subGrids?.locked as { width: number } | undefined;
+    if (locked) locked.width = narrow ? GRID_WIDTH.narrow : GRID_WIDTH.wide;
+  }, [narrow]);
 
   const byPhase = useMemo(() => {
     const map = new Map<string, Milestone[]>();
@@ -88,6 +143,11 @@ export function ProjectGantt({ project }: { project: ProjectDetail }) {
         state,
         waitForPayment: p.waitForPayment,
         days: daysBetween(p.startDate, p.endDate),
+        moved: daysBetween(p.baselineStart, p.startDate),
+        // The original dates, drawn as a thin line under the bar once a phase has moved.
+        baselines: p.baselineStart !== p.startDate || p.baselineEnd !== p.endDate
+          ? [{ startDate: p.baselineStart, endDate: p.baselineEnd }]
+          : [],
       };
     });
     const dependencies = project.phases.slice(1).map((p, i) => ({ id: `d${i}`, from: project.phases[i]!.id, to: p.id }));
@@ -100,6 +160,21 @@ export function ProjectGantt({ project }: { project: ProjectDetail }) {
     if (!instance) return;
     instance.loadInlineData({ tasks: data.tasks, dependencies: data.dependencies });
   }, [data]);
+
+  // The label renderer reads the latest invoices through a ref, so the feature config never changes.
+  const moneyRef = useRef({ byPhase, currency: project.currency });
+  moneyRef.current = { byPhase, currency: project.currency };
+  const labels = useMemo(
+    () => ({
+      bottom: {
+        renderer: ({ taskRecord, domConfig }: { taskRecord: Model; domConfig: DomConfig }) => {
+          const { byPhase, currency } = moneyRef.current;
+          domConfig.children = moneyLine(byPhase.get(String(taskRecord.id)) ?? [], currency);
+        },
+      },
+    }),
+    [],
+  );
 
   const range = useMemo(() => {
     const starts = project.phases.map((p) => p.startDate).sort();
@@ -134,42 +209,14 @@ export function ProjectGantt({ project }: { project: ProjectDetail }) {
         startDate={range.start}
         endDate={range.end}
         visibleDate={range.visible}
-        viewPreset={{
-          // One tick per week; on wide screens Bryntum stretches it, on phones the timeline scrolls.
-          tickWidth: 76,
-          shiftUnit: "week",
-          shiftIncrement: 1,
-          timeResolution: { unit: "day", increment: 1 },
-          headers: [{ unit: "week", dateFormat: "D MMM" }],
-        }}
-        subGridConfigs={{ locked: { width: narrow ? 150 : 240 } }}
-        columns={[
-          {
-            type: "name",
-            field: "name",
-            text: "Phase",
-            flex: 1,
-            renderer: ({ record }: { record: Model }) => {
-              const days = record.getData("days") as number;
-              const waits = record.getData("waitForPayment") as boolean;
-              return {
-                children: [
-                  { className: "phase-name", text: record.getData("name") as string },
-                  { className: "phase-sub", text: weeksLabel(days) + (waits ? ", waits for payment" : "") },
-                ],
-              };
-            },
-          },
-        ]}
+        viewPreset={VIEW_PRESET}
+        ref={ganttRef}
+        subGridConfigs={grids}
+        columns={COLUMNS}
         taskRenderer={({ taskRecord }) => BAR_TEXT[taskRecord.getData("state") as PhaseState] ?? ""}
-        labelsFeature={{
-          bottom: {
-            renderer: ({ taskRecord, domConfig }) => {
-              domConfig.children = moneyLine(byPhase.get(String(taskRecord.id)) ?? [], project.currency);
-            },
-          },
-        }}
-        timeRangesFeature={{ showCurrentTimeLine: { name: "Today" } }}
+        labelsFeature={labels}
+        timeRangesFeature={TIME_RANGES}
+        baselinesFeature
         taskMenuFeature={false}
         cellMenuFeature={false}
         headerMenuFeature={false}

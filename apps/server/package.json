@@ -7,7 +7,8 @@
     "build": "tsdown",
     "typecheck": "tsc -p .",
     "db:push": "drizzle-kit push",
-    "webhook:register": "tsx scripts/register-webhook.ts"
+    "webhook:register": "tsx scripts/register-webhook.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "3.0.63",
