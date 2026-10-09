@@ -75,8 +75,8 @@ both the API and the built frontend.
 
 1. Create a Neon database and run `pnpm db:push` against it once.
 2. Create the service from `render.yaml` and fill in the secret env vars.
-3. Run `pnpm webhook:register https://<your-app>.onrender.com` and copy the new
-   `PAYPAL_WEBHOOK_ID` into Render.
+3. Run `pnpm webhook:register https://<your-app>.onrender.com` and set the
+   `PAYPAL_WEBHOOK_ID` it prints in Render. Your local tunnel webhook keeps working.
 4. Free Render instances sleep after 15 minutes without traffic. Point an external pinger such as
    [cron-job.org](https://cron-job.org) at `https://<your-app>.onrender.com/api/ping` every 10
    minutes so webhooks and the agent's schedule keep running.
