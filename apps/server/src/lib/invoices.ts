@@ -231,7 +231,7 @@ export async function syncInvoice(invoiceId: string, eventType?: string) {
 
 // A blocked phase waits on the phase right before it. Once every invoice on that phase that
 // holds the next one is paid, unblock it.
-export async function unblockAfter(projectId: string, phaseId: string) {
+async function unblockAfter(projectId: string, phaseId: string) {
   const phase = await db.query.phases.findFirst({ where: eq(schema.phases.id, phaseId) });
   if (!phase) return;
   const bills = await db.query.milestones.findMany({ where: eq(schema.milestones.phaseId, phaseId) });

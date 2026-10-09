@@ -1,6 +1,6 @@
 import { env } from "../env.ts";
 
-export const PAYPAL_BASE =
+const PAYPAL_BASE =
   env.PAYPAL_ENVIRONMENT === "LIVE" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
 
 const basicAuth = "Basic " + Buffer.from(`${env.PAYPAL_CLIENT_ID}:${env.PAYPAL_SECRET}`).toString("base64");
@@ -49,7 +49,7 @@ export async function paypal<T = unknown>(path: string, init: RequestInit = {}):
 }
 
 // Keeps PayPal's own short explanation for the UI; the full body goes to the server log.
-export class PayPalError extends Error {
+class PayPalError extends Error {
   constructor(
     readonly status: number,
     body: string,

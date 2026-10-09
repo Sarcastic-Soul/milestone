@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 // A tiny history router: three routes don't need a library.
-export type Route = { name: "projects" } | { name: "new" } | { name: "project"; id: string } | { name: "missing" };
+type Route = { name: "projects" } | { name: "new" } | { name: "project"; id: string } | { name: "missing" };
 
 function match(path: string): Route {
   if (path === "/" || path === "") return { name: "projects" };

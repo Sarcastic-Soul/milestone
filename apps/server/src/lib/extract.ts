@@ -12,10 +12,10 @@ Pull out the project plan exactly as written. Do not invent phases, payments or 
 - If no start date is given, use ${today()}.
 - If no client email is given, use client@example.com.`;
 
-export type ContractInput = { text?: string; file?: { data: Uint8Array; mediaType: string } };
+type ContractInput = { text?: string; file?: { data: Uint8Array; mediaType: string } };
 
 // Returns the contract as plain text when we can read it, so it can be stored with the project.
-export async function readContractText(input: ContractInput): Promise<string | null> {
+async function readContractText(input: ContractInput): Promise<string | null> {
   if (input.text?.trim()) return input.text.trim();
   if (input.file?.mediaType === "application/pdf") {
     const pdf = await getDocumentProxy(input.file.data);
