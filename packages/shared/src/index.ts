@@ -111,6 +111,9 @@ export type ProjectDetail = {
     label: string;
     amount: number;
     amountPaid: number;
+    // What PayPal kept and what reached the freelancer; null unless paid through PayPal.
+    paypalFee: number | null;
+    netAmount: number | null;
     holdsNextPhase: boolean;
     dueDate: string | null;
     status: MilestoneStatus;

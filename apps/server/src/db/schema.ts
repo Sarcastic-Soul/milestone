@@ -45,6 +45,10 @@ export const milestones = pgTable("milestones", {
   amountPaid: numeric({ precision: 12, scale: 2 }).notNull().default("0"),
   // Capture ids of the payments on this invoice, used to match disputes back to it.
   transactionIds: text().array().notNull().default([]),
+  // From the PayPal captures behind the invoice. Null until paid through PayPal itself
+  // (payments recorded by hand, like a bank transfer, have no PayPal fee).
+  paypalFee: numeric({ precision: 12, scale: 2 }),
+  netAmount: numeric({ precision: 12, scale: 2 }),
   // False for the second half of a split invoice, so paying the first half is enough to move on.
   holdsNextPhase: boolean().notNull().default(true),
   // pending | sent | paid | partially_paid | refunded | cancelled

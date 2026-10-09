@@ -153,6 +153,8 @@ export async function getProject(id: string): Promise<ProjectDetail | null> {
       label: m.label,
       amount: Number(m.amount),
       amountPaid: Number(m.amountPaid),
+      paypalFee: m.paypalFee === null ? null : Number(m.paypalFee),
+      netAmount: m.netAmount === null ? null : Number(m.netAmount),
       holdsNextPhase: m.holdsNextPhase,
       dueDate: m.dueDate,
       status: m.status as MilestoneStatus,

@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../db/index.ts";
 import { logActivity } from "./activity.ts";
+import { readFees } from "./captures.ts";
 import { addDays, maxDate, today } from "./dates.ts";
 import { money } from "./money.ts";
 import { paypal } from "./paypal.ts";
@@ -11,7 +12,10 @@ type Project = typeof schema.projects.$inferSelect;
 type Invoice = {
   id: string;
   status: string;
-  payments?: { paid_amount?: { value: string }; transactions?: { payment_id: string }[] };
+  payments?: {
+    paid_amount?: { value: string };
+    transactions?: { payment_id: string; method?: string }[];
+  };
 };
 
 function splitName(full: string) {
@@ -175,28 +179,41 @@ export async function syncInvoice(invoiceId: string, eventType?: string) {
   let status = eventType ? STATUS_BY_EVENT[eventType] : undefined;
   let amountPaid = Number(milestone.amountPaid);
   let transactionIds = milestone.transactionIds;
+  let captureIds: string[] = [];
   try {
     const invoice = await paypal<Invoice>(`/v2/invoicing/invoices/${invoiceId}`);
     status = STATUS_BY_PAYPAL[invoice.status] ?? (invoice.status === "SENT" || invoice.status === "UNPAID" ? "sent" : status);
     amountPaid = Number(invoice.payments?.paid_amount?.value ?? amountPaid);
     transactionIds = invoice.payments?.transactions?.map((t) => t.payment_id) ?? transactionIds;
+    // Only payments made through PayPal have a capture; hand-recorded ones don't.
+    captureIds = invoice.payments?.transactions?.filter((t) => t.method === "PAYPAL").map((t) => t.payment_id) ?? [];
   } catch (err) {
     console.warn(`[invoice] could not read ${invoiceId}:`, (err as Error).message);
   }
   if (!status) return;
   if (status === "paid") amountPaid = Math.max(amountPaid, Number(milestone.amount));
 
+  const fees = captureIds.length > 0 ? await readFees(captureIds) : null;
+
   const changed = status !== milestone.status || amountPaid !== Number(milestone.amountPaid);
   await db
     .update(schema.milestones)
-    .set({ status, amountPaid: amountPaid.toFixed(2), transactionIds })
+    .set({
+      status,
+      amountPaid: amountPaid.toFixed(2),
+      transactionIds,
+      ...(fees && { paypalFee: fees.fee.toFixed(2), netAmount: fees.net.toFixed(2) }),
+    })
     .where(eq(schema.milestones.id, milestone.id));
   if (!changed) return;
 
   const project = await db.query.projects.findFirst({ where: eq(schema.projects.id, milestone.projectId) });
   const currency = project?.currency ?? "USD";
   const messages: Record<string, [string, "payment" | "warning"]> = {
-    paid: [`${milestone.label} paid through PayPal: ${money(milestone.amount, currency)}.`, "payment"],
+    paid: [
+      `${milestone.label} paid through PayPal: ${money(milestone.amount, currency)}${fees ? `, ${money(fees.net, currency)} after PayPal's fee` : ""}.`,
+      "payment",
+    ],
     partially_paid: [
       `${milestone.label}: client paid ${money(amountPaid, currency)} of ${money(milestone.amount, currency)}.`,
       "payment",

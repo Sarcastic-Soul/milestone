@@ -30,6 +30,9 @@ Built for the [PayPal AI Hackathon 2026](https://paypalaihackathon.devpost.com/)
   it, or dismiss it. The model can look up invoices and disputes through the
   [PayPal Agent Toolkit](https://github.com/paypal/agent-toolkit) (read-only); every change goes
   through an approval.
+- **What actually reached you.** When a client pays through PayPal, Milestone reads the
+  capture behind the invoice with the PayPal Server SDK and shows the PayPal fee and the amount
+  you received next to each paid milestone.
 - **Replans you can see.** After a phase moves, the Gantt keeps its original dates as a dotted
   ghost bar (Bryntum baselines), so the slip is visible at a glance.
 
@@ -40,7 +43,7 @@ Built for the [PayPal AI Hackathon 2026](https://paypalaihackathon.devpost.com/)
 | Frontend | React 19, Vite 8, Tailwind CSS 4, TanStack Query, Bryntum Gantt 7 |
 | Backend | Hono 4 on Node 22, Drizzle ORM, Postgres |
 | AI | Vercel AI SDK 7 with Ollama Cloud (`gemma4:31b`), PayPal Agent Toolkit |
-| PayPal | Invoicing, Payouts, Webhooks, Disputes (sandbox) |
+| PayPal | Invoicing, Payouts, Webhooks, Disputes (REST); Payments through `@paypal/paypal-server-sdk` (sandbox) |
 | Hosting | Render (web service), Neon (Postgres) |
 
 ## Run locally
@@ -77,6 +80,16 @@ both the API and the built frontend.
 4. Free Render instances sleep after 15 minutes without traffic. Point an external pinger such as
    [cron-job.org](https://cron-job.org) at `https://<your-app>.onrender.com/api/ping` every 10
    minutes so webhooks and the agent's schedule keep running.
+
+## Built with APIMatic
+
+The PayPal Server SDK code was written with the [APIMatic ContextMatic](https://www.apimatic.io/product/contextmatic)
+plugin in Claude Code, which supplied SDK usage, models and endpoint details. Its project
+guidelines live in `.claude/`.
+
+## Tests
+
+`pnpm --filter @milestone/server test`
 
 ## License
 

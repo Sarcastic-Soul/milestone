@@ -150,9 +150,17 @@ function MilestoneAction(props: {
 
   if (m.status === "paid") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent">
-        <CheckIcon weight="bold" aria-hidden /> Paid
-      </span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-accent">
+          <CheckIcon weight="bold" aria-hidden /> Paid
+        </span>
+        {m.netAmount !== null && (
+          <span className="text-ink-2">
+            <span className="num text-ink">{money(m.netAmount, props.currency)}</span> to you after{" "}
+            <span className="num">{money(m.paypalFee ?? 0, props.currency)}</span> PayPal fee
+          </span>
+        )}
+      </div>
     );
   }
   if (m.status === "pending") {
